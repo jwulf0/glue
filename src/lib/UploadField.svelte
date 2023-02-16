@@ -14,7 +14,7 @@
     $: {
         if(files && files.length > 0) {
             const filesAsArray = [...files];
-            images.init(filesAsArray.map(f => f.name));
+            images.init(filesAsArray.map((f, idx) => ({ id: idx, originalFilename: f.name })));
             filesAsArray.forEach((file, idx) => {
                 handleFile(file, idx);
             });

@@ -4,7 +4,7 @@
 
 <div class="images-list">
     {#if $images && $images.length > 0}
-        {#each $images as image}
+        {#each $images as image (image.id)}
             {#if image.dataUrl}
             <div class="img">
                 <img src={image.dataUrl} alt={image.originalFilename} />
