@@ -6,3 +6,10 @@ export interface ImageReference {
 export interface Image extends ImageReference {
     dataUrl: string | null;
 }
+
+export enum OrderChange {
+    Top,
+    Up,
+    Down,
+    Bottom
+};

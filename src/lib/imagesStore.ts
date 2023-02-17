@@ -1,7 +1,7 @@
 import { writable } from 'svelte/store';
-import type { Image, ImageReference } from './model';
+import { OrderChange, type Image, type ImageReference } from './model';
 
-const {subscribe, set, update} = writable<readonly (Image | null)[]>([]); 
+const {subscribe, set, update} = writable<readonly Image[]>([]); 
 
 /**
  * Initialize the store with some references to uploaded images. 
@@ -38,8 +38,64 @@ const updateFileContents = (id: number, dataUrl: string) => {
     );
 };
 
+/**
+ * Remove an image from the list of images to be glued.
+ * 
+ * @param id ID of the image to remove
+ */
+export const remove = (id: number) => {
+    update(images => images.filter(img => img.id !== id))
+};
+
+export const sort = (id: number, orderChange: OrderChange) => {
+
+    update(images => {
+        const currentIdx = images.findIndex(img => img.id === id);
+        const img = images[currentIdx];
+
+        if(currentIdx < 0) {
+            console.error(`Invalid call sort(${id}, ${orderChange}) - ID not found.`);
+            return images;
+        }
+
+        const maxIdx = images.length - 1;
+
+        switch (orderChange) {
+            case OrderChange.Top:
+                if (currentIdx === 0) { return images; }
+                return [img, ...images.filter(i => i.id !== id)];
+            case OrderChange.Up:
+                if (currentIdx === 0) { return images; }
+
+                const imgBeforeToSwapWith = images[currentIdx - 1];
+
+                return [
+                    ...images.slice(0, currentIdx - 1),
+                    img,
+                    imgBeforeToSwapWith,
+                    ...images.slice(currentIdx + 1)
+                ];
+            case OrderChange.Down:
+                if (currentIdx === maxIdx) { return images; }
+
+                const imgAfterToSwapWith = images[currentIdx + 1];
+
+                return [
+                    ...images.slice(0, currentIdx),
+                    imgAfterToSwapWith,
+                    img,
+                    ...images.slice(currentIdx + 2)
+                ];
+            case OrderChange.Bottom:
+                if (currentIdx === maxIdx) { return images; }
+                return [...images.filter(i => i.id !== id), img];
+        }
+    })
+}
+
 export const images = {
     subscribe,
     init,
-    updateFileContents
+    updateFileContents,
+    remove
 }

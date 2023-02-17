@@ -8,7 +8,7 @@
 <main>
   <h1>Glue</h1>
 
-  <div class="card">
+  <div>
     {#if $images && $images.length > 0}
       <ImagesList />
     {:else}
