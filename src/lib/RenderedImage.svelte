@@ -1,14 +1,18 @@
 <script lang="ts">
     import {OrderChange, type Image} from './model';
 
+    import { createEventDispatcher } from 'svelte';
+
+	const dispatch = createEventDispatcher<{
+        sort: OrderChange,
+        remove: void
+    }>();
+
     export let image: Image;
     export let sortable: boolean;
 
-    export let onSort: (orderChange: OrderChange) => void;
-    export let onRemove: () => void;
-
-    const triggerSort = (orderChange: OrderChange) => () => onSort(orderChange);
-    const triggerRemove = () => onRemove();
+    const triggerSort = (orderChange: OrderChange) => () => dispatch('sort', orderChange)
+    const triggerRemove = () => dispatch('remove')
 </script>
 
 {#if image.dataUrl}
