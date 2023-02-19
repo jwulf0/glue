@@ -5,7 +5,7 @@
 
     const handleFile = (file: File, idx: number) => {
         const reader = new FileReader();
-        reader.onload = (e) => {
+        reader.onload = () => {
             images.updateFileContents(idx, reader.result as string);
         };
         reader.readAsDataURL(file);
@@ -22,4 +22,4 @@
     };
 </script>
 
-<input type="file" multiple bind:files />
+<input type="file" multiple accept="image/png" bind:files />

@@ -35,6 +35,7 @@
 <style lang="css">
     .img {
         position: relative;
+        min-height: 100px;
     }
 
     .controls {

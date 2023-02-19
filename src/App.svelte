@@ -2,7 +2,23 @@
   import svelteLogo from './assets/svelte.svg'
   import UploadField from './lib/UploadField.svelte';
   import ImagesList from './lib/ImagesList.svelte';
-  import {images} from './lib/imagesStore'; 
+  import {images} from './lib/imagesStore';
+  import { writable } from 'svelte/store';
+  import {fromURL} from 'png-es6'
+
+
+  const glueing = writable<boolean>(false);
+
+  $: canGlue = !$glueing && $images.length > 1;
+
+  $: {
+    if($glueing) {
+      const first = $images[0];
+      fromURL(first.dataUrl)
+        .then(data => console.log(data))
+        .catch(err => console.error(err));
+    }
+  };
 </script>
 
 <main>
@@ -10,7 +26,13 @@
 
   <div>
     {#if $images && $images.length > 0}
+      {#if $glueing}
+      <p>glueing...</p>
+      {:else}
+      <p>Step 2: Order the images. When finished, click the Glue-Button.</p>
+      <button on:click={() => glueing.set(true)} disabled={!canGlue}>Glue!</button>
       <ImagesList />
+      {/if}
     {:else}
       <p>Step 1: Choose the Images to be glued together</p>
       <UploadField />

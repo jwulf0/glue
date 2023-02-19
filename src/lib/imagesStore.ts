@@ -17,7 +17,7 @@ const init = (files: ImageReference[]) => {
         throw new Error('IDs of Images not unique!');
     }
 
-    set(files.map(({id, originalFilename}) => ({id, originalFilename,  dataUrl: null })));
+    set(files.map(({id, originalFilename}) => ({id, originalFilename,  dataUrl: null, data: null })));
 };
 
 /**
