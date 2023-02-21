@@ -5,6 +5,7 @@
   import {images} from './lib/imagesStore';
   import { writable } from 'svelte/store';
   import {fromURL} from 'png-es6'
+  import Matcher from './lib/image-matching/Matcher.svelte';
 
 
   const glueing = writable<boolean>(false);
@@ -27,7 +28,7 @@
   <div>
     {#if $images && $images.length > 0}
       {#if $glueing}
-      <p>glueing...</p>
+      <Matcher topImg={$images[0]} bottomImg={$images[1]} />
       {:else}
       <p>Step 2: Order the images. When finished, click the Glue-Button.</p>
       <button on:click={() => glueing.set(true)} disabled={!canGlue}>Glue!</button>
