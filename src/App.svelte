@@ -28,7 +28,7 @@
   <div>
     {#if $images && $images.length > 0}
       {#if $glueing}
-      <Matcher topImg={$images[0]} bottomImg={$images[1]} />
+      <Matcher images={$images} />
       {:else}
       <p>Step 2: Order the images. When finished, click the Glue-Button.</p>
       <button on:click={() => glueing.set(true)} disabled={!canGlue}>Glue!</button>

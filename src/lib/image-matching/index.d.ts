@@ -7,7 +7,7 @@ export interface SizeInfo {
 export interface DecodedPng {
     width: number;
     height: number;
-    pixels: number[];
+    pixels: Uint8Array;
 }
 
 export interface MatchingConfig {
