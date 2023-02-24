@@ -58,13 +58,18 @@ const tryMatching = (top: DecodedPng, bottom: DecodedPng, config: MatchingConfig
     }
 
     const attemptOverlay = (o: OverlayContext): void => {
-        let lines: number = 0; // lines matching with this context so far
-        let failed: boolean = false;
-        while(!failed && lines < o.yOffset) {
-            attemptCb({...o, lines});
-            const isMatch = isLineMatch(o, lines);
-            if(isMatch) { lines++ };
-            failed = !isMatch;
+        attemptCb({...o, lines: 0 });
+
+        // first check current line and minMatchingLines further down
+        if(isLineMatch(o, 0) && isLineMatch(o, config.minMatchingLines - 1)) {
+            let lines: number = 1; // lines matching with this context so far - we checked line 1 first.
+            let failed: boolean = false;
+            while(!failed && lines < o.yOffset) {
+                attemptCb({...o, lines});
+                const isMatch = isLineMatch(o, lines);
+                if(isMatch) { lines++ };
+                failed = !isMatch;
+            }
         }
     }
 
