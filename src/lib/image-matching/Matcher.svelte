@@ -4,7 +4,9 @@
     import {fromURL} from 'png-es6'
     import { onDestroy, onMount } from "svelte";
 
-    export let images: readonly Image[]; // TODO ensure dataURL not null via types
+    export let images: readonly Image[]; // TODO ensure dataURL not null via types TODO when these change, chaos ensues in combination with the MatchedImage-array...
+    
+    const maxParallel = 2;
 
     let canvas: HTMLCanvasElement;
     let error: string;
@@ -12,22 +14,107 @@
     
     interface MatchedImage {
         element: HTMLImageElement; // not sure if width/height is okay to use from here, but should be...
-        // size: SizeInfo; 
-        // baseXOffset: number; // depends on image above
+        decoded: DecodedPng;
         lastAttempt?: Attempt;
         bestAttempt?: Attempt;
+        worker?: Worker;
+        complete: boolean;
     }
 
     let matchingAttempts: MatchedImage[] = [];
-    let workers: Worker[] = [];
-    $:loading = error === undefined && (workers.length === 0 || matchingAttempts.length === 0)
 
+    $:loading = error === undefined && matchingAttempts.length === 0
 
     interface DrawnImage {
         element: HTMLImageElement; 
         top: number;
         left: number;
     }
+
+    let attemptsReceivedFromWorkers: number = 0;
+    let attemptsWithMoreThanOneLine: number = 0;
+
+    const decode = (img: Image): Promise<[Image, DecodedPng]> => fromURL(img.dataUrl).then(decoded => [img, decoded]);
+
+    const startMatching = (bottomImgIndex: number) => {
+        if(bottomImgIndex < 1) { return; } // should not happen
+
+        const decodedTop = matchingAttempts[bottomImgIndex - 1].decoded;
+        const decodedBottom = matchingAttempts[bottomImgIndex].decoded;
+
+        const worker = new Worker(new URL('./matcher', import.meta.url));
+                
+        matchingUpdate(bottomImgIndex, a => ({...a, worker}));
+
+        worker.postMessage({
+            type: 'MatchRequest',
+            top: {
+                width: decodedTop.width,
+                height: decodedTop.height,
+                pixels: decodedTop.pixels
+            },
+            bottom: {
+                width: decodedBottom.width,
+                height: decodedBottom.height,
+                pixels: decodedBottom.pixels
+            },
+            config: {
+                provisionalMatchWidthFactor: 0.2,
+                minMatchingLines,
+                maxAttemptedHorizontalOffset: 300,
+                maxYOffsetFactor: 0.75
+            }
+        });
+
+        worker.onmessage = (event) => {
+            if(event.data.type === 'attempt') {
+                attemptsReceivedFromWorkers = attemptsReceivedFromWorkers + 1;
+                const attempt = event.data as Attempt;
+                if(attempt.lines > 1) {
+                    attemptsWithMoreThanOneLine = attemptsWithMoreThanOneLine + 1;
+                }
+
+                matchingUpdate(bottomImgIndex, a => ({
+                    ...a,
+                    lastAttempt: attempt,
+                    bestAttempt: a.bestAttempt === undefined || (attempt.lines > a.bestAttempt.lines) ? attempt : a.bestAttempt
+                }));
+            } else if (event.data.type === 'exhausted') {
+                console.log('got EXHAUSTED  for idx ' + bottomImgIndex);
+                matchingUpdate(bottomImgIndex, a => ({...a, worker: undefined, complete: true}));
+                worker.terminate();
+            }
+        };
+    };
+
+    const isOpen = (a: MatchedImage): boolean => (a.worker === undefined) && (!a.complete);
+
+    $: numOpen = matchingAttempts.filter((a, i) => i > 0 && isOpen(a)).length;
+    $: numRunning = matchingAttempts.filter(a => a.worker !== undefined).length;
+
+    const matchNextOpen = () => {
+        console.log(`Will start matching the next images!`);
+        matchingAttempts
+                .map<[MatchedImage, number]>((a, idx) => [a, idx])
+                .filter(([a, idx]) => idx > 0 && isOpen(a))
+                .slice(0, 1)
+                .forEach(([_, idx]) => startMatching(idx));
+    }
+
+    $: {
+        console.log(`numOpen updated to ${numOpen}`);
+        if(numOpen > 0 && numRunning < maxParallel) {
+            matchNextOpen()
+        }
+    }
+
+    /**
+     * Updates the State of a MatchedImage, identified by index; triggers a "svelte reactivity" update via new assignment; does not check for equality beforehand.
+     */
+    const matchingUpdate = (idx: number, fn: (_: MatchedImage) => MatchedImage) => {
+        // trigger change in matchingAttempts.
+        matchingAttempts = matchingAttempts.map((a,i) => i !== idx ? a : fn(a));
+    };
 
     const minMatchingLines = 30; // TODO configurable or something?
 
@@ -36,7 +123,7 @@
         return attempts.reduce<DrawnImage[]>((acc, img, idx) => {
             let baseX: number, baseY: number;
             if(idx === 0) {
-                // TODO this can and should be cashed...
+                // TODO this can and should be cached...
                 const widest = Math.max(...attempts.map(res => res.element.width));
                 baseX = (widest - img.element.width) / 2;
                 baseY = 0;
@@ -84,79 +171,28 @@
     }
 
     onMount(() => {
-        const decode = (img: Image): Promise<[Image, DecodedPng]> => fromURL(img.dataUrl).then(decoded => [img, decoded]);
-
         // for now, we decode the dataURLs into PNG data here
         Promise
             .all(images.map(decode))
             .then(results => {
-                const hmmm: MatchedImage[] = [];
-
-                // post a match request for all 2-image-pairs.
-                results.forEach(([imgOriginal, imageDecoded], idx, all) => {
+                matchingAttempts = results.map(([imgOriginal, decoded], idx, all) => {
                     const element = new Image;
                     element.src = imgOriginal.dataUrl;
+
                     if(idx === 0) {
-                        hmmm.push({element});
+                        return {element, decoded, worker: undefined, complete: true}
                     } else {
-                        const imageAbove = all[idx - 1][1]; // TODO is all correct?
-                        const worker = new Worker(new URL('./matcher', import.meta.url));
-                        const matchedImage: MatchedImage = { element };
-                        hmmm.push(matchedImage);
-
-                        worker.postMessage({
-                            type: 'MatchRequest',
-                            top: {
-                                width: imageAbove.width,
-                                height: imageAbove.height,
-                                pixels: imageAbove.pixels
-                            },
-                            bottom: {
-                                width: imageDecoded.width,
-                                height: imageDecoded.height,
-                                pixels: imageDecoded.pixels
-                            },
-                            config: {
-                                provisionalMatchWidthFactor: 0.1,
-                                minMatchingLines,
-                                maxAttemptedHorizontalOffset: 300,
-                                maxYOffsetFactor: 0.75
-                            }
-                        });
-
-
-                        worker.onmessage = (event) => {
-                            if(event.data.type === 'attempt') {
-                                const attempt = event.data as Attempt;
-
-                                // trigger change in matchingAttempts.
-                                matchingAttempts = matchingAttempts.map((a,i) => {
-                                    if(i !== idx) { return a; }
-                                    else return {
-                                        ...a,
-                                        lastAttempt: attempt,
-                                        bestAttempt: a.bestAttempt === undefined || (attempt.lines > a.bestAttempt.lines) ? attempt : a.bestAttempt
-                                    };
-                                })
-                            }
-                        };
-
-                        workers.push(worker);
+                        return { element, decoded, worker: undefined, complete: false }
                     }
                 });
 
-                matchingAttempts = hmmm;
-
-                // TODO this might need to be more dynamic... due to element movement
-                const canvasWidth = Math.max(...results.map(r => r[1].width));
-                const canvasHeight = results.map(r => r[1].height).reduce((a, b) => a + b);
+                const canvasWidth = Math.max(...matchingAttempts.map(a => a.decoded.width));
+                const canvasHeight = matchingAttempts.map(a => a.decoded.height).reduce((a, b) => a + b);
                 canvas.width = canvasWidth;
                 canvas.height = canvasHeight;
 
                 const ctx = canvas.getContext('2d');
                 draw(canvasWidth, canvasHeight, ctx);
-
-                console.log(matchingAttempts);
             })
             .catch(err => {
                 console.error(err);
@@ -165,7 +201,7 @@
     });
 
     onDestroy(() => {
-        workers.forEach(w => w.terminate());
+        matchingAttempts.forEach(({worker}) => { if(worker !== undefined) worker.terminate });
 
         if(animationFrameId !== undefined) {
             cancelAnimationFrame(animationFrameId);
@@ -174,6 +210,7 @@
 </script>
 
 <div class="matcher">
+    <h1>{attemptsReceivedFromWorkers} / {attemptsWithMoreThanOneLine}</h1>
     {#if error !== undefined}
         <p class="error">{error}</p>
     {:else if loading}
