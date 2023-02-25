@@ -28,6 +28,8 @@ interface OverlayContext {
 }
 
 const tryMatching = (top: DecodedPng, bottom: DecodedPng, config: MatchingConfig, attemptCb: (_: Attempt) => void) => {
+    let bestAttemptLines = 0;
+
     // prepare the matching context
     const matchingWidth = Math.min(
         Math.ceil(config.provisionalMatchWidthFactor * Math.min(top.width, bottom.width)),
@@ -59,9 +61,10 @@ const tryMatching = (top: DecodedPng, bottom: DecodedPng, config: MatchingConfig
 
     const attemptOverlay = (o: OverlayContext): void => {
         attemptCb({...o, lines: 0 });
+        const linesToBeat = Math.max(config.minMatchingLines - 1, bestAttemptLines);
 
         // first check current line and minMatchingLines further down
-        if(isLineMatch(o, 0) && isLineMatch(o, config.minMatchingLines - 1)) {
+        if(isLineMatch(o, 0) && isLineMatch(o, linesToBeat)) {
             let lines: number = 1; // lines matching with this context so far - we checked line 1 first.
             let failed: boolean = false;
             while(!failed && lines < o.yOffset) {
@@ -70,16 +73,32 @@ const tryMatching = (top: DecodedPng, bottom: DecodedPng, config: MatchingConfig
                 if(isMatch) { lines++ };
                 failed = !isMatch;
             }
+            if(lines > bestAttemptLines) {
+                bestAttemptLines = lines;
+            }
+        }
+    };
+
+    // returns the max number of lines possible for this y offset (with any x offset - it will remain unknown for now)
+    const tryYOffset = (yOffset:number): void => {
+        for(let xAbs = 0; xAbs < maxAbsXOffset; xAbs++) {
+            [-1, 1].forEach(sign => {
+                if(sign === -1 && xAbs === 0) {
+                    return;
+                }
+                const xOffset = xAbs * sign;
+                const overlayContext: OverlayContext = { xOffset, yOffset };
+                attemptOverlay(overlayContext);
+            });
         }
     }
 
     // iterate through all relevant OverlayContexts we want to try:
-    for(let y = 1; y < maxYOffset; y++) {
-        for(let x = -1 * maxAbsXOffset; x <= maxAbsXOffset; x++) {
-            const overlayContext: OverlayContext = { xOffset: x, yOffset: y };
-            attemptOverlay(overlayContext);
-        }
+    for(let y = 0; y < maxYOffset; y++) {
+        tryYOffset(y);
     }
+
+    postMessage({type: 'exhausted'});
 }
 
 // IPC
@@ -96,19 +115,5 @@ addEventListener('message', (event) => {
         postMessage({type: 'attempt', ...a})
     });
 });
-
-
-
-
-/*
-    // Describes how the bottom image is moved over the top image for finding a match.
-
-    interface MatchingContext {
-        top: DecodedPng; // the top image
-        bottom: DecodedPng; // the bottom image
-        matchingWidth: number; // how many pixels to match in the middle of lines
-        maxAbsXOffset: number; // how far (to each side, left and right) x-offset of the bottom image should be tried
-    }
-*/
 
 export type {} // for now, to satisfy --isolatedModules
