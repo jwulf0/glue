@@ -29,6 +29,10 @@
         element: HTMLImageElement; 
         top: number;
         left: number;
+        attemptRec?: {
+            top: number;
+            height: number;
+        }
     }
 
     let attemptsReceivedFromWorkers: number = 0;
@@ -80,7 +84,7 @@
                     bestAttempt: a.bestAttempt === undefined || (attempt.lines > a.bestAttempt.lines) ? attempt : a.bestAttempt
                 }));
             } else if (event.data.type === 'exhausted') {
-                console.log('got EXHAUSTED  for idx ' + bottomImgIndex);
+                console.log('got EXHAUSTED for idx ' + bottomImgIndex);
                 matchingUpdate(bottomImgIndex, a => ({...a, worker: undefined, complete: true}));
                 worker.terminate();
             }
@@ -141,7 +145,11 @@
             const newlyDrawnImg: DrawnImage = {
                 element: img.element,
                 left: baseX + attemptToDraw.xOffset,
-                top: baseY - attemptToDraw.yOffset
+                top: baseY - attemptToDraw.yOffset,
+                attemptRec: ((img.lastAttempt === undefined) || img.complete) ? undefined : {
+                    top: baseY - img.lastAttempt.yOffset,
+                    height: img.lastAttempt.lines
+                }
             };
 
             return [...acc, newlyDrawnImg]
@@ -153,14 +161,20 @@
 
     function draw(canvasWidth: number,
                   canvasHeight: number,
-                  ctx: CanvasRenderingContext2D) { 
+                  ctx: CanvasRenderingContext2D) {
 
         ctx.clearRect(0, 0, canvasWidth, canvasHeight);
         ctx.globalAlpha = 1;
         
-        imagesToDraw.forEach(({element, top, left}, idx) => {
+        imagesToDraw.forEach(({element, top, left, attemptRec}) => {
             ctx.drawImage(element, left, top);
-        })
+            if(attemptRec !== undefined) {
+                ctx.beginPath();
+                ctx.strokeStyle = 'rgba(30, 220, 30, 0.9)';
+                ctx.rect(0, attemptRec.top, canvasWidth, attemptRec.height);
+                ctx.stroke();
+            }
+        });
 
         const complete: boolean = false; // TODO reactive?
         if(!complete) {
