@@ -18,7 +18,7 @@
         lastAttempt?: Attempt;
         bestAttempt?: Attempt;
         worker?: Worker;
-        complete: boolean;
+        exhausted: boolean;
     }
 
     let matchingAttempts: MatchedImage[] = [];
@@ -85,13 +85,13 @@
                 }));
             } else if (event.data.type === 'exhausted') {
                 console.log('got EXHAUSTED for idx ' + bottomImgIndex);
-                matchingUpdate(bottomImgIndex, a => ({...a, worker: undefined, complete: true}));
+                matchingUpdate(bottomImgIndex, a => ({...a, worker: undefined, exhausted: true}));
                 worker.terminate();
             }
         };
     };
 
-    const isOpen = (a: MatchedImage): boolean => (a.worker === undefined) && (!a.complete);
+    const isOpen = (a: MatchedImage): boolean => (a.worker === undefined) && (!a.exhausted);
 
     $: numOpen = matchingAttempts.filter((a, i) => i > 0 && isOpen(a)).length;
     $: numRunning = matchingAttempts.filter(a => a.worker !== undefined).length;
@@ -146,7 +146,7 @@
                 element: img.element,
                 left: baseX + attemptToDraw.xOffset,
                 top: baseY - attemptToDraw.yOffset,
-                attemptRec: ((img.lastAttempt === undefined) || img.complete) ? undefined : {
+                attemptRec: ((img.lastAttempt === undefined) || img.exhausted) ? undefined : {
                     top: baseY - img.lastAttempt.yOffset,
                     height: img.lastAttempt.lines
                 }
@@ -194,9 +194,9 @@
                     element.src = imgOriginal.dataUrl;
 
                     if(idx === 0) {
-                        return {element, decoded, worker: undefined, complete: true}
+                        return {element, decoded, worker: undefined, exhausted: true}
                     } else {
-                        return { element, decoded, worker: undefined, complete: false }
+                        return { element, decoded, worker: undefined, exhausted: false }
                     }
                 });
 
