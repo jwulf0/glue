@@ -1,10 +1,15 @@
-export interface ImageReference {
-    id: number;
-    originalFilename: string;
+// part of the output of png-es6
+export interface DecodedPng {
+    width: number;
+    height: number;
+    pixels: Uint8Array;
 }
 
-export interface Image extends ImageReference {
-    dataUrl: string | null;
+export interface Image {
+    id: number;
+    originalFilename: string;
+    dataUrl: string;
+    decoded: DecodedPng
 }
 
 export enum OrderChange {

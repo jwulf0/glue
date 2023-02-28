@@ -1,14 +1,3 @@
-export interface SizeInfo {
-    width: number;
-    height: number;
-}
-
-// part of the output of png-es6
-export interface DecodedPng {
-    width: number;
-    height: number;
-    pixels: Uint8Array;
-}
 
 export interface MatchingConfig {
     provisionalMatchWidthFactor: number; // a proportion to match lines in the "provisional matching" phase; is taken from the lower width of the two images

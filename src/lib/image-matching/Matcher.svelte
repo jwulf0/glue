@@ -1,10 +1,9 @@
 <script lang="ts">
     import type { Image } from "../model";
-    import type { Attempt, DecodedPng, SizeInfo } from "./index";
-    import {fromURL} from 'png-es6'
+    import type { Attempt } from "./index";
     import { onDestroy, onMount } from "svelte";
 
-    export let images: readonly Image[]; // TODO ensure dataURL not null via types TODO when these change, chaos ensues in combination with the MatchedImage-array...
+    export let images: readonly Image[];
     
     const maxParallel = 2;
 
@@ -14,7 +13,6 @@
     
     interface MatchedImage {
         element: HTMLImageElement; // not sure if width/height is okay to use from here, but should be...
-        decoded: DecodedPng;
         lastAttempt?: Attempt;
         bestAttempt?: Attempt;
         worker?: Worker;
@@ -38,13 +36,11 @@
     let attemptsReceivedFromWorkers: number = 0;
     let attemptsWithMoreThanOneLine: number = 0;
 
-    const decode = (img: Image): Promise<[Image, DecodedPng]> => fromURL(img.dataUrl).then(decoded => [img, decoded]);
-
     const startMatching = (bottomImgIndex: number) => {
         if(bottomImgIndex < 1) { return; } // should not happen
 
-        const decodedTop = matchingAttempts[bottomImgIndex - 1].decoded;
-        const decodedBottom = matchingAttempts[bottomImgIndex].decoded;
+        const decodedTop = images[bottomImgIndex - 1].decoded;
+        const decodedBottom = images[bottomImgIndex].decoded;
 
         const worker = new Worker(new URL('./matcher', import.meta.url));
                 
@@ -97,7 +93,6 @@
     $: numRunning = matchingAttempts.filter(a => a.worker !== undefined).length;
 
     const matchNextOpen = () => {
-        console.log(`Will start matching the next images!`);
         matchingAttempts
                 .map<[MatchedImage, number]>((a, idx) => [a, idx])
                 .filter(([a, idx]) => idx > 0 && isOpen(a))
@@ -106,7 +101,6 @@
     }
 
     $: {
-        console.log(`numOpen updated to ${numOpen}`);
         if(numOpen > 0 && numRunning < maxParallel) {
             matchNextOpen()
         }
@@ -159,9 +153,9 @@
 
     $: imagesToDraw = matchingStateToDrawnImage(matchingAttempts);
 
-    function draw(canvasWidth: number,
+    const draw = (canvasWidth: number,
                   canvasHeight: number,
-                  ctx: CanvasRenderingContext2D) {
+                  ctx: CanvasRenderingContext2D) => {
 
         ctx.clearRect(0, 0, canvasWidth, canvasHeight);
         ctx.globalAlpha = 1;
@@ -185,33 +179,24 @@
     }
 
     onMount(() => {
-        // for now, we decode the dataURLs into PNG data here
-        Promise
-            .all(images.map(decode))
-            .then(results => {
-                matchingAttempts = results.map(([imgOriginal, decoded], idx, all) => {
-                    const element = new Image;
-                    element.src = imgOriginal.dataUrl;
+        matchingAttempts = images.map((img, idx) => {
+            const element = new Image;
+            element.src = img.dataUrl;
 
-                    if(idx === 0) {
-                        return {element, decoded, worker: undefined, exhausted: true}
-                    } else {
-                        return { element, decoded, worker: undefined, exhausted: false }
-                    }
-                });
+            if(idx === 0) {
+                return {element, worker: undefined, exhausted: true}
+            } else {
+                return { element, worker: undefined, exhausted: false }
+            }
+        });
 
-                const canvasWidth = Math.max(...matchingAttempts.map(a => a.decoded.width));
-                const canvasHeight = matchingAttempts.map(a => a.decoded.height).reduce((a, b) => a + b);
-                canvas.width = canvasWidth;
-                canvas.height = canvasHeight;
+        const canvasWidth = Math.max(...images.map(a => a.decoded.width));
+        const canvasHeight = images.map(a => a.decoded.height).reduce((a, b) => a + b);
+        canvas.width = canvasWidth;
+        canvas.height = canvasHeight;
 
-                const ctx = canvas.getContext('2d');
-                draw(canvasWidth, canvasHeight, ctx);
-            })
-            .catch(err => {
-                console.error(err);
-                error = `Error decoding images: ${JSON.stringify(err)}`
-            })
+        const ctx = canvas.getContext('2d');
+        draw(canvasWidth, canvasHeight, ctx);
     });
 
     onDestroy(() => {

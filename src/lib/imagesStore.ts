@@ -1,41 +1,23 @@
 import { writable } from 'svelte/store';
-import { OrderChange, type Image, type ImageReference } from './model';
+import { OrderChange, type Image } from './model';
 
 const {subscribe, set, update} = writable<readonly Image[]>([]); 
 
 /**
- * Initialize the store with some references to uploaded images. 
+ * Initialize the store with uploaded images. They are stored as dataURL and in "decoded PNG format" which does not
+ * make this a masterpice in memory efficiency but that's okay for now.
  * 
  * The id properties need to be unique. Calls to other exposed methods of this store need this ID to identify an image.
  * 
- * @param files Filenames and  of the uploaded images.
+ * @param images Filenames and of the uploaded images.
  */
-const init = (files: ImageReference[]) => {
+const init = (images: Image[]) => {
     // ensure unique IDs
-    const numUniqueIds: number = new Set(files.map(f => f.id)).size
-    if(numUniqueIds !== files.length) {
+    const numUniqueIds: number = new Set(images.map(f => f.id)).size
+    if(numUniqueIds !== images.length) {
         throw new Error('IDs of Images not unique!');
     }
-
-    set(files.map(({id, originalFilename}) => ({id, originalFilename,  dataUrl: null, data: null })));
-};
-
-/**
- * To be called when a fileReader has read the contents of one of the uploaded files as data URL (https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URLs).
- * 
- * @param id ID of the image to update
- * @param dataUrl file data as dataURL
- */
-const updateFileContents = (id: number, dataUrl: string) => {
-    update(images => 
-        images.map((img) => {
-            if(img.id !== id) return img;
-            return {
-                ...img,
-                dataUrl
-            }
-        })
-    );
+    set(images)
 };
 
 /**
@@ -48,7 +30,6 @@ export const remove = (id: number) => {
 };
 
 export const sort = (id: number, orderChange: OrderChange) => {
-
     update(images => {
         const currentIdx = images.findIndex(img => img.id === id);
         const img = images[currentIdx];
@@ -96,6 +77,5 @@ export const sort = (id: number, orderChange: OrderChange) => {
 export const images = {
     subscribe,
     init,
-    updateFileContents,
     remove
 }
