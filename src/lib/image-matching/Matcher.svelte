@@ -2,40 +2,36 @@
     import type { Image } from "../model";
     import type { Attempt } from "./index";
     import { onDestroy, onMount } from "svelte";
+    import AcceptButton from "./AcceptButton.svelte";
 
-    export let images: readonly Image[];
-    
-    const maxParallel = 2;
+    export let images: readonly Image[];      // images to match
+    export let maxParallel: number = 2;       // how many workers to spawn at most in parallel
+    export let minMatchingLines: number = 30; // how many lines are required at least for a match to count
 
     let canvas: HTMLCanvasElement;
     let error: string;
     let animationFrameId: number;
-    
+
+    // -- MATCHING --
     interface MatchedImage {
         element: HTMLImageElement; // not sure if width/height is okay to use from here, but should be...
+        exhausted: boolean;
         lastAttempt?: Attempt;
         bestAttempt?: Attempt;
         worker?: Worker;
-        exhausted: boolean;
-    }
+        accepted?: Attempt;
+    };
 
     let matchingAttempts: MatchedImage[] = [];
 
-    $:loading = error === undefined && matchingAttempts.length === 0
+    /**
+     * Updates the State of a MatchedImage, identified by index; triggers a "svelte reactivity" update via new assignment
+     */
+     const matchingUpdate = (idx: number, fn: (_: MatchedImage) => MatchedImage) => {
+        matchingAttempts = matchingAttempts.map((a,i) => i !== idx ? a : fn(a));
+    };
 
-    interface DrawnImage {
-        element: HTMLImageElement; 
-        top: number;
-        left: number;
-        attemptRec?: {
-            top: number;
-            height: number;
-        }
-    }
-
-    let attemptsReceivedFromWorkers: number = 0;
-    let attemptsWithMoreThanOneLine: number = 0;
-
+    // Starts matching the image with the given index to the image above 
     const startMatching = (bottomImgIndex: number) => {
         if(bottomImgIndex < 1) { return; } // should not happen
 
@@ -68,11 +64,7 @@
 
         worker.onmessage = (event) => {
             if(event.data.type === 'attempt') {
-                attemptsReceivedFromWorkers = attemptsReceivedFromWorkers + 1;
                 const attempt = event.data as Attempt;
-                if(attempt.lines > 1) {
-                    attemptsWithMoreThanOneLine = attemptsWithMoreThanOneLine + 1;
-                }
 
                 matchingUpdate(bottomImgIndex, a => ({
                     ...a,
@@ -80,17 +72,17 @@
                     bestAttempt: a.bestAttempt === undefined || (attempt.lines > a.bestAttempt.lines) ? attempt : a.bestAttempt
                 }));
             } else if (event.data.type === 'exhausted') {
-                console.log('got EXHAUSTED for idx ' + bottomImgIndex);
                 matchingUpdate(bottomImgIndex, a => ({...a, worker: undefined, exhausted: true}));
                 worker.terminate();
             }
         };
     };
 
-    const isOpen = (a: MatchedImage): boolean => (a.worker === undefined) && (!a.exhausted);
+    const isOpen = (a: MatchedImage): boolean => (a.worker === undefined) && (!a.exhausted) && (!a.accepted);
 
     $: numOpen = matchingAttempts.filter((a, i) => i > 0 && isOpen(a)).length;
     $: numRunning = matchingAttempts.filter(a => a.worker !== undefined).length;
+    $: numComplete = matchingAttempts.filter(a => a.exhausted || a.accepted).length;
 
     const matchNextOpen = () => {
         matchingAttempts
@@ -106,23 +98,24 @@
         }
     }
 
-    /**
-     * Updates the State of a MatchedImage, identified by index; triggers a "svelte reactivity" update via new assignment; does not check for equality beforehand.
-     */
-    const matchingUpdate = (idx: number, fn: (_: MatchedImage) => MatchedImage) => {
-        // trigger change in matchingAttempts.
-        matchingAttempts = matchingAttempts.map((a,i) => i !== idx ? a : fn(a));
+    // -- VISUALIZATION --
+    // map the images being matched to drawing instructions for the canvas
+    interface DrawnImage {
+        element: HTMLImageElement; 
+        top: number;
+        left: number;
+        attemptRec?: {
+            top: number;
+            height: number;
+        };
     };
 
-    const minMatchingLines = 30; // TODO configurable or something?
+    const matchingStateToDrawnImages = (attempts: MatchedImage[]): DrawnImage[] => {
+        const widest = Math.max(...attempts.map(res => res.element.width));
 
-    const matchingStateToDrawnImage = (attempts: MatchedImage[]): DrawnImage[] => {
-        
         return attempts.reduce<DrawnImage[]>((acc, img, idx) => {
             let baseX: number, baseY: number;
             if(idx === 0) {
-                // TODO this can and should be cached...
-                const widest = Math.max(...attempts.map(res => res.element.width));
                 baseX = (widest - img.element.width) / 2;
                 baseY = 0;
             } else {
@@ -131,16 +124,17 @@
                 baseY = prevDrawn.top + prevDrawn.element.height;
             }
 
-            // TODO 30 configurable
-            const attemptToDraw: Attempt = (img.bestAttempt !== undefined && img.bestAttempt.lines >= 30) ? img.bestAttempt : (
-                img.lastAttempt !== undefined ? { ...img.lastAttempt, xOffset: 0 } : ({ xOffset: 0, yOffset: 0, lines: 0 })
+            const attemptToDraw = img.accepted ? img.accepted : (
+                    (img.bestAttempt !== undefined && img.bestAttempt.lines >= minMatchingLines) ? img.bestAttempt :  (
+                    img.lastAttempt !== undefined ? { ...img.lastAttempt, xOffset: 0 } : ({ xOffset: 0, yOffset: 0, lines: 0 })
+                )
             );
 
             const newlyDrawnImg: DrawnImage = {
                 element: img.element,
                 left: baseX + attemptToDraw.xOffset,
                 top: baseY - attemptToDraw.yOffset,
-                attemptRec: ((img.lastAttempt === undefined) || img.exhausted) ? undefined : {
+                attemptRec: ((img.lastAttempt === undefined) || img.exhausted || img.accepted) ? undefined : {
                     top: baseY - img.lastAttempt.yOffset,
                     height: img.lastAttempt.lines
                 }
@@ -151,7 +145,7 @@
         // TODO - maybe only update when there are real changes and only then call the draw-fn? Or is that not really relevant?
     }
 
-    $: imagesToDraw = matchingStateToDrawnImage(matchingAttempts);
+    $: imagesToDraw = matchingStateToDrawnImages(matchingAttempts);
 
     const draw = (canvasWidth: number,
                   canvasHeight: number,
@@ -170,7 +164,7 @@
             }
         });
 
-        const complete: boolean = false; // TODO reactive?
+        const complete: boolean = numComplete > 0 && (numOpen === 0) && (numRunning === 0);
         if(!complete) {
             animationFrameId = requestAnimationFrame(() => draw(canvasWidth, canvasHeight, ctx));
         } else {
@@ -178,6 +172,36 @@
         }
     }
 
+    // -- INTERACTION/USER SUPPORT --
+    // Map matching attempts to suggestions which the user can accept in order to stop workers early, reducing the overall workload
+    interface Suggestion {
+        idx: number;         // matched image index (bottom)
+        attempt: Attempt;    // the attempt to be accepted (TODO or rejected)
+        relativeTop: number; // where the suggested match is on the y axis, relative to (theoretical) canvas height
+    };
+    let suggestions: Suggestion[];
+    $:suggestions = matchingAttempts 
+        .map<[MatchedImage, number]>((a, idx) => [a, idx])
+        .filter(([a, idx]) => !a.accepted && a.bestAttempt && a.bestAttempt.lines > minMatchingLines && imagesToDraw[idx])
+        .map(([a, idx]) => ({
+            idx,
+            attempt: a.bestAttempt,
+            relativeTop: imagesToDraw[idx].top / canvas.height
+        }));
+    const onAccept = (s: Suggestion) => {
+        if(matchingAttempts[s.idx].worker !== undefined) {
+            matchingAttempts[s.idx].worker.terminate();
+        }
+        matchingUpdate(s.idx, a => ({
+            ...a,
+            worker: undefined,
+            accepted: s.attempt
+        }));
+    };
+
+    // -- LIFECYCLE --
+    // These lifecycle callbacks start/stop the matching and animation on the canvas;
+    // the onMount are necessary because we can't start before the canvas is available
     onMount(() => {
         matchingAttempts = images.map((img, idx) => {
             const element = new Image;
@@ -206,16 +230,23 @@
             cancelAnimationFrame(animationFrameId);
         }
     });
+
+
+    $:loading = error === undefined && matchingAttempts.length === 0
 </script>
 
 <div class="matcher">
-    <h1>{attemptsReceivedFromWorkers} / {attemptsWithMoreThanOneLine}</h1>
     {#if error !== undefined}
         <p class="error">{error}</p>
     {:else if loading}
         <p>Preparing images...</p>
     {/if}
-    <canvas bind:this={canvas}></canvas>
+    <div style="position: relative;">
+        <canvas bind:this={canvas}></canvas>
+        {#each suggestions as s}
+            <AcceptButton relativeTop={s.relativeTop} on:accept={() => onAccept(s)} />
+        {/each}
+    </div>
 </div>
 
 <style>
