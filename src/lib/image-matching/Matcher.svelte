@@ -142,27 +142,34 @@
 
             return [...acc, newlyDrawnImg]
         }, []);
-        // TODO - maybe only update when there are real changes and only then call the draw-fn? Or is that not really relevant?
     }
 
-    $: imagesToDraw = matchingStateToDrawnImages(matchingAttempts);
+    let imagesToDraw: DrawnImage[] = [];
+    let imagesToDrawUpdated: boolean = false;
+    $: {
+        imagesToDraw = matchingStateToDrawnImages(matchingAttempts);
+        imagesToDrawUpdated = true;
+    };
 
     const draw = (canvasWidth: number,
                   canvasHeight: number,
                   ctx: CanvasRenderingContext2D) => {
+        if(imagesToDrawUpdated) {
+            imagesToDrawUpdated = false; // TODO hmm - can we be sure, this doesn't run in parallel with something setting it to true?
 
-        ctx.clearRect(0, 0, canvasWidth, canvasHeight);
-        ctx.globalAlpha = 1;
-        
-        imagesToDraw.forEach(({element, top, left, attemptRec}) => {
-            ctx.drawImage(element, left, top);
-            if(attemptRec !== undefined) {
-                ctx.beginPath();
-                ctx.strokeStyle = 'rgba(30, 220, 30, 0.9)';
-                ctx.rect(0, attemptRec.top, canvasWidth, attemptRec.height);
-                ctx.stroke();
-            }
-        });
+            ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+            ctx.globalAlpha = 1;
+            
+            imagesToDraw.forEach(({element, top, left, attemptRec}) => {
+                ctx.drawImage(element, left, top);
+                if(attemptRec !== undefined) {
+                    ctx.beginPath();
+                    ctx.strokeStyle = 'rgba(30, 220, 30, 0.9)';
+                    ctx.rect(0, attemptRec.top, canvasWidth, attemptRec.height);
+                    ctx.stroke();
+                }
+            });
+        }
 
         const complete: boolean = numComplete > 0 && (numOpen === 0) && (numRunning === 0);
         if(!complete) {
