@@ -2,8 +2,8 @@
 export interface MatchingConfig {
     provisionalMatchWidthFactor: number; // a proportion to match lines in the "provisional matching" phase; is taken from the lower width of the two images
     minMatchingLines: number; // how many consecutively matching lines count as a match
-    maxAttemptedHorizontalOffset: number; // how far the images are moved on the x axis for a potential match (is applied to both sides, left and right)
-    maxYOffsetFactor: number; // how far up the bottom is tried in the overlay at most; relative to top image size (?)
+    maxXOffsetFactor: number; // how far the images are moved on the x axis for a potential match (is applied to both sides, left and right; relative to top image width)
+    maxYOffsetFactor: number; // how far up the bottom is tried in the overlay at most; relative to top image height
 }
 
 export interface Attempt {

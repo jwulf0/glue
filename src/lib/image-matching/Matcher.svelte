@@ -57,7 +57,7 @@
             config: {
                 provisionalMatchWidthFactor: 0.5,
                 minMatchingLines,
-                maxAttemptedHorizontalOffset: 200,
+                maxXOffsetFactor: 0.1,
                 maxYOffsetFactor: 0.75
             }
         };

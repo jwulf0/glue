@@ -15,7 +15,7 @@ const tryMatching = (top: DecodedPng, bottom: DecodedPng, config: MatchingConfig
         top.width,
         bottom.width
     );
-    const maxAbsXOffset = Math.abs(Math.min(config.maxAttemptedHorizontalOffset, (bottom.width - matchingWidth) / 2));
+    const maxAbsXOffset = Math.abs(Math.min(config.maxXOffsetFactor * top.width, (bottom.width - matchingWidth) / 2));
     const maxYOffset = Math.min(top.height, Math.ceil(config.maxYOffsetFactor * top.height));
     
 
