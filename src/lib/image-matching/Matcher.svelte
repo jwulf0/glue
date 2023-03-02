@@ -55,9 +55,9 @@
                 pixels: decodedBottom.pixels
             },
             config: {
-                provisionalMatchWidthFactor: 0.2,
+                provisionalMatchWidthFactor: 0.5,
                 minMatchingLines,
-                maxAttemptedHorizontalOffset: 300,
+                maxAttemptedHorizontalOffset: 200,
                 maxYOffsetFactor: 0.75
             }
         });
@@ -151,13 +151,12 @@
         imagesToDrawUpdated = true;
     };
 
-    const draw = (canvasWidth: number,
-                  canvasHeight: number,
-                  ctx: CanvasRenderingContext2D) => {
-        if(imagesToDrawUpdated) {
-            imagesToDrawUpdated = false; // TODO hmm - can we be sure, this doesn't run in parallel with something setting it to true?
+    const draw = (ctx: CanvasRenderingContext2D) => {
+        if(imagesToDrawUpdated && imagesToDraw.length > 0) {
+            const last = imagesToDraw[imagesToDraw.length - 1];
+            canvas.height = last.top + last.element.height;
 
-            ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.globalAlpha = 1;
             
             imagesToDraw.forEach(({element, top, left, attemptRec}) => {
@@ -165,15 +164,17 @@
                 if(attemptRec !== undefined) {
                     ctx.beginPath();
                     ctx.strokeStyle = 'rgba(30, 220, 30, 0.9)';
-                    ctx.rect(0, attemptRec.top, canvasWidth, attemptRec.height);
+                    ctx.rect(0, attemptRec.top, canvas.width, attemptRec.height);
                     ctx.stroke();
                 }
             });
+
+            imagesToDrawUpdated = false;
         }
 
         const complete: boolean = numComplete > 0 && (numOpen === 0) && (numRunning === 0);
         if(!complete) {
-            animationFrameId = requestAnimationFrame(() => draw(canvasWidth, canvasHeight, ctx));
+            animationFrameId = requestAnimationFrame(() => draw(ctx));
         } else {
             animationFrameId = undefined;
         }
@@ -227,7 +228,7 @@
         canvas.height = canvasHeight;
 
         const ctx = canvas.getContext('2d');
-        draw(canvasWidth, canvasHeight, ctx);
+        draw(ctx);
     });
 
     onDestroy(() => {
