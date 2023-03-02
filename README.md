@@ -3,7 +3,7 @@
 Glue images together vertically by matching image contents.
 
 ## Background
-Had a small conversation with [ChatGPT](https://chat.openai.com/). Wanted to screenshot the whole page (so one image for all scrolled content) but all browser plugins I tried didn't manage to do it correctly. I guess, because the scrolled element wasn't the pages `<body>` but some `<div>` maybe. So I scrolled took a bunch of screenshots manually (they are in the `examples`-directory) and, as probably a lot of programmers would do, decided not to spend 5 minutes in photoshop to glue them together, but rather a few hours to write a tool for that, playing around with some technologies I have wanted to try out for a while. 
+Had a small conversation with [ChatGPT](https://chat.openai.com/). Wanted to screenshot the whole page (so one image for all scrolled content) but all browser plugins I tried didn't manage to do it correctly. I guess, because the scrolled element wasn't the pages `<body>` but some `<div>` maybe. So I scrolled took a [bunch of screenshots](example/) manually and, as probably a lot of programmers would do, decided not to spend 5 minutes in photoshop to glue them together, but rather a few hours to write a tool for that, playing around with some technologies I have wanted to try out for a while. 
 
 ## What I learned
 
