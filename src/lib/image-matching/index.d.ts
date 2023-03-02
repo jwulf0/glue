@@ -11,3 +11,11 @@ export interface Attempt {
     xOffset: number; // offset of the bottom image - can be positive and negative.
     lines: number; // number of lines that have matched so far.
 }
+
+// IPC
+interface MatchRequest {
+    type: 'MatchRequest';
+    top: DecodedPng;
+    bottom: DecodedPng;
+    config: MatchingConfig;
+}

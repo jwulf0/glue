@@ -1,6 +1,6 @@
 <script lang="ts">
     import type { Image } from "../model";
-    import type { Attempt } from "./index";
+    import type { Attempt, MatchRequest } from "./index";
     import { onDestroy, onMount } from "svelte";
     import AcceptButton from "./AcceptButton.svelte";
 
@@ -42,7 +42,7 @@
                 
         matchingUpdate(bottomImgIndex, a => ({...a, worker}));
 
-        worker.postMessage({
+        const request: MatchRequest = {
             type: 'MatchRequest',
             top: {
                 width: decodedTop.width,
@@ -60,7 +60,9 @@
                 maxAttemptedHorizontalOffset: 200,
                 maxYOffsetFactor: 0.75
             }
-        });
+        };
+
+        worker.postMessage(request);
 
         worker.onmessage = (event) => {
             if(event.data.type === 'attempt') {
