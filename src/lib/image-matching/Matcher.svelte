@@ -1,12 +1,12 @@
 <script lang="ts">
     import type { Image } from "../model";
-    import type { Attempt, MatchRequest } from "./index";
+    import type { Attempt, MatchingConfig, MatchRequest } from "./index";
     import { onDestroy, onMount } from "svelte";
     import AcceptButton from "./AcceptButton.svelte";
 
     export let images: readonly Image[];      // images to match
     export let maxParallel: number = 2;       // how many workers to spawn at most in parallel
-    export let minMatchingLines: number = 30; // how many lines are required at least for a match to count
+    export let config: MatchingConfig;
 
     let canvas: HTMLCanvasElement;
     let error: string;
@@ -54,12 +54,7 @@
                 height: decodedBottom.height,
                 pixels: decodedBottom.pixels
             },
-            config: {
-                provisionalMatchWidthFactor: 0.5,
-                minMatchingLines,
-                maxXOffsetFactor: 0.1,
-                maxYOffsetFactor: 0.75
-            }
+            config
         };
 
         worker.postMessage(request);
@@ -127,7 +122,7 @@
             }
 
             const attemptToDraw = img.accepted ? img.accepted : (
-                    (img.bestAttempt !== undefined && img.bestAttempt.lines >= minMatchingLines) ? img.bestAttempt :  (
+                    (img.bestAttempt !== undefined && img.bestAttempt.lines >= config.minMatchingLines) ? img.bestAttempt :  (
                     img.lastAttempt !== undefined ? { ...img.lastAttempt, xOffset: 0 } : ({ xOffset: 0, yOffset: 0, lines: 0 })
                 )
             );
@@ -192,7 +187,7 @@
     let suggestions: Suggestion[];
     $:suggestions = matchingAttempts 
         .map<[MatchedImage, number]>((a, idx) => [a, idx])
-        .filter(([a, idx]) => !a.accepted && a.bestAttempt && a.bestAttempt.lines > minMatchingLines && imagesToDraw[idx])
+        .filter(([a, idx]) => !a.accepted && a.bestAttempt && a.bestAttempt.lines > config.minMatchingLines && imagesToDraw[idx])
         .map(([a, idx]) => ({
             idx,
             attempt: a.bestAttempt,

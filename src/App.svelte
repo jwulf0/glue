@@ -6,8 +6,16 @@
   import { writable } from 'svelte/store';
   import {fromURL} from 'png-es6'
   import Matcher from './lib/image-matching/Matcher.svelte';
+  import Config from './lib/image-matching/Config.svelte';
+  import type { MatchingConfig } from './lib/image-matching';
 
-
+  let config: MatchingConfig = {
+    provisionalMatchWidthFactor: 0.5,
+    minMatchingLines: 30,
+    maxXOffsetFactor: 0.1,
+    maxYOffsetFactor: 0.75
+  };
+  let maxParallel = 1;
   const glueing = writable<boolean>(false);
 
   $: canGlue = !$glueing && $images.length > 1;
@@ -28,9 +36,10 @@
   <div>
     {#if $images && $images.length > 0}
       {#if $glueing}
-      <Matcher images={$images} />
+      <Matcher images={$images} config={config} maxParallel={maxParallel} />
       {:else}
       <p>Step 2: Order the images. When finished, click the Glue-Button.</p>
+      <Config bind:config={config} bind:maxParallel={maxParallel} numImages={$images.length} /> 
       <button on:click={() => glueing.set(true)} disabled={!canGlue}>Glue!</button>
       <ImagesList />
       {/if}
