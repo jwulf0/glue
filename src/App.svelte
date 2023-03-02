@@ -16,12 +16,12 @@
     maxYOffsetFactor: 0.75
   };
   let maxParallel = 1;
-  const glueing = writable<boolean>(false);
+  let glueing: boolean = false;
 
-  $: canGlue = !$glueing && $images.length > 1;
+  $: canGlue = !glueing && $images.length > 1;
 
   $: {
-    if($glueing) {
+    if(glueing) {
       const first = $images[0];
       fromURL(first.dataUrl)
         .then(data => console.log(data))
@@ -35,12 +35,12 @@
 
   <div>
     {#if $images && $images.length > 0}
-      {#if $glueing}
+      {#if glueing}
       <Matcher images={$images} config={config} maxParallel={maxParallel} />
       {:else}
       <p>Step 2: Order the images. When finished, click the Glue-Button.</p>
       <Config bind:config={config} bind:maxParallel={maxParallel} numImages={$images.length} /> 
-      <button on:click={() => glueing.set(true)} disabled={!canGlue}>Glue!</button>
+      <button on:click={() => glueing = true} disabled={!canGlue}>Glue!</button>
       <ImagesList />
       {/if}
     {:else}
